@@ -75,18 +75,30 @@ namespace TechCosmos.AssetBundleBuilder.Editor
 
         private void DrawFolderList()
         {
+            int itemToRemove = -1;
+
+            // 第一遍：只标记，不执行删除
             for (int i = 0; i < sourceFolders.Count; i++)
             {
                 EditorGUILayout.BeginHorizontal();
                 sourceFolders[i] = EditorGUILayout.TextField($"文件夹 {i + 1}:", sourceFolders[i]);
                 if (GUILayout.Button("×", GUILayout.Width(30)))
                 {
-                    sourceFolders.RemoveAt(i);
-                    break;
+                    itemToRemove = i; // 只标记，不删除
+                                      // 不要 break，继续完成当前布局
                 }
                 EditorGUILayout.EndHorizontal();
             }
 
+            // 第二遍：在GUI布局之外执行删除
+            if (itemToRemove >= 0)
+            {
+                sourceFolders.RemoveAt(itemToRemove);
+                // 可选：强制刷新GUI
+                Repaint();
+            }
+
+            // 添加文件夹的按钮
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("+ 添加文件夹"))
             {
