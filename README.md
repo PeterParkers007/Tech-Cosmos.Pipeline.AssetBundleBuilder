@@ -43,10 +43,12 @@
 
 ### 3️⃣ **配置命名规则**
 示例配置UI资源：
-**Path Keyword: "UI"**
-**Naming Pattern: TwoLevelFolders**
-**Priority: 10**
-结果：Assets/Art/UI/Icons/health.png - ui/icons
+```json
+Path Keyword: "UI"
+Naming Pattern: TwoLevelFolders
+Priority: 10
+```
+**结果：Assets/Art/UI/Icons/health.png - ui/icons**
 
 ### 4️⃣ **构建AssetBundles**
 - 选择**输出路径**和**目标平台**
