@@ -2,7 +2,7 @@
   "name": "com.tech-cosmos.asset-bundle-builder",
   "displayName": "AssetBundle Builder",
   "version": "1.0.0",
-  "description": "🚀 智能、可配置的 AssetBundle 打包工具，支持自适应命名规则和可视化配置",
+  "description": "智能、可配置的 AssetBundle 打包工具，支持自适应命名规则和可视化配置",
   "category": "Tools",
   "keywords": [
     "assetbundle",
