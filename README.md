@@ -94,7 +94,7 @@ Priority: 10
 扁平化：ui_icons
 ```
 ## 📁 目录结构
-```
+
 - `Assets/Tech-Cosmos/`
   - `Editor/`
     - `SmartBundleBuilder.cs` - 主工具窗口
@@ -104,7 +104,7 @@ Priority: 10
     - `BundleNamingRule.cs` - 命名规则数据
     - `Enums/`
       - `NamingPattern.cs` - 枚举定义
-```
+
 
 ## 常见问题
 
