@@ -25,7 +25,7 @@
 ### **通过 Unity Package Manager**
 1. 打开 **Unity Package Manager**
 2. 点击 **"+"** 按钮 → **"Add package from git URL"**
-3. 输入：`https://github.com/your-username/smart-bundle-builder.git`
+3. 输入：`https://github.com/PeterParkers007/Tech-Cosmos.Pipeline.AssetBundleBuilder.git`
 
 ### **手动安装**
 1. 下载**最新release**
@@ -90,18 +90,17 @@ Priority: 10
 原始：ui/icons
 扁平化：ui_icons
 
-## 目录结构
+## 📁 目录结构
 
-Assets/
-└── Tech-Cosmos/
-    ├── Editor/
-    │   ├── SmartBundleBuilder.cs      # 主工具窗口
-    │   └── PreviewWindow.cs           # 命名预览窗口
-    ├── ScriptableObjects/
-    │   ├── AssetBundleConfig.cs       # 主配置类
-    │   ├── BundleNamingRule.cs        # 命名规则数据
-    │   └── Enums/
-    │       └── NamingPattern.cs       # 枚举定义
+- `Assets/Tech-Cosmos/`
+  - `Editor/`
+    - `SmartBundleBuilder.cs` - 主工具窗口
+    - `PreviewWindow.cs` - 命名预览窗口
+  - `ScriptableObjects/`
+    - `AssetBundleConfig.cs` - 主配置类  
+    - `BundleNamingRule.cs` - 命名规则数据
+    - `Enums/`
+      - `NamingPattern.cs` - 枚举定义
 
 
 ## 常见问题
@@ -123,5 +122,5 @@ MIT License - 详见LICENSE文件
 ---
 
 <div align="center">
-**让AssetBundle打包变得简单而强大！** ✨
+让AssetBundle打包变得简单而强大！ ✨
 </div>
