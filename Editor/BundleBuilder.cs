@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Linq;
 using System.IO;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using TechCosmos.AssetBundleBuilder.SO;
-using TechCosmos.AssetBundleBuilder.Data; 
+using TechCosmos.AssetBundleBuilder.Data;
+
 namespace TechCosmos.AssetBundleBuilder.Editor
 {
     public class BundleBuilder : EditorWindow
@@ -24,53 +26,61 @@ namespace TechCosmos.AssetBundleBuilder.Editor
 
         private void OnGUI()
         {
-            scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
-
-            // 标题
-            EditorGUILayout.Space();
-            GUILayout.Label("🎯 AssetBundle 打包工具", EditorStyles.boldLabel);
-            EditorGUILayout.Space();
-
-            // === 配置文件 ===
-            GUILayout.Label("⚙️ 配置文件", EditorStyles.boldLabel);
-            config = (AssetBundleConfig)EditorGUILayout.ObjectField("配置文件", config, typeof(AssetBundleConfig), false);
-
-            if (config == null)
+            // 🎯 添加配置保护
+            if (config != null && !AssetDatabase.Contains(config))
             {
-                EditorGUILayout.HelpBox("请创建或指定配置文件", MessageType.Warning);
-                if (GUILayout.Button("📝 创建新配置"))
+                Debug.LogWarning("配置引用已失效，正在重置...");
+                config = null;
+            }
+
+            using (var scrollView = new EditorGUILayout.ScrollViewScope(scrollPosition))
+            {
+                scrollPosition = scrollView.scrollPosition;
+
+                // 标题
+                EditorGUILayout.Space();
+                GUILayout.Label("🎯 AssetBundle 打包工具", EditorStyles.boldLabel);
+                EditorGUILayout.Space();
+
+                // === 配置文件 ===
+                GUILayout.Label("⚙️ 配置文件", EditorStyles.boldLabel);
+                config = (AssetBundleConfig)EditorGUILayout.ObjectField("配置文件", config, typeof(AssetBundleConfig), false);
+
+                if (config == null)
                 {
-                    CreateNewConfig();
+                    EditorGUILayout.HelpBox("请创建或指定配置文件", MessageType.Warning);
+                    if (GUILayout.Button("📝 创建新配置"))
+                    {
+                        CreateNewConfig();
+                    }
+                }
+                else
+                {
+                    EditorGUILayout.HelpBox($"已加载配置: {config.name}", MessageType.Info);
+                }
+
+                // === 基础配置 ===
+                GUILayout.Label("📁 扫描文件夹", EditorStyles.boldLabel);
+                DrawFolderList();
+
+                GUILayout.Label("📤 输出配置", EditorStyles.boldLabel);
+                DrawOutputConfig();
+
+                // === 构建按钮 ===
+                GUI.backgroundColor = Color.green;
+                if (GUILayout.Button("🚀 构建 AssetBundles", GUILayout.Height(40)))
+                {
+                    BuildAllAssetBundles();
+                }
+                GUI.backgroundColor = Color.white;
+
+                // === 工具按钮 ===
+                EditorGUILayout.Space();
+                if (GUILayout.Button("🔍 预览命名结果"))
+                {
+                    PreviewNamingResults();
                 }
             }
-            else
-            {
-                EditorGUILayout.HelpBox($"已加载配置: {config.name}", MessageType.Info);
-            }
-
-            // === 基础配置 ===
-            GUILayout.Label("📁 扫描文件夹", EditorStyles.boldLabel);
-            DrawFolderList();
-
-            GUILayout.Label("📤 输出配置", EditorStyles.boldLabel);
-            DrawOutputConfig();
-
-            // === 构建按钮 ===
-            GUI.backgroundColor = Color.green;
-            if (GUILayout.Button("🚀 构建 AssetBundles", GUILayout.Height(40)))
-            {
-                BuildAllAssetBundles();
-            }
-            GUI.backgroundColor = Color.white;
-
-            // === 工具按钮 ===
-            EditorGUILayout.Space();
-            if (GUILayout.Button("🔍 预览命名结果"))
-            {
-                PreviewNamingResults();
-            }
-
-            EditorGUILayout.EndScrollView();
         }
 
         private void DrawFolderList()
@@ -80,153 +90,197 @@ namespace TechCosmos.AssetBundleBuilder.Editor
             // 第一遍：只标记，不执行删除
             for (int i = 0; i < sourceFolders.Count; i++)
             {
-                EditorGUILayout.BeginHorizontal();
-                sourceFolders[i] = EditorGUILayout.TextField($"文件夹 {i + 1}:", sourceFolders[i]);
-                if (GUILayout.Button("×", GUILayout.Width(30)))
+                using (new EditorGUILayout.HorizontalScope())
                 {
-                    itemToRemove = i; // 只标记，不删除
-                                      // 不要 break，继续完成当前布局
+                    sourceFolders[i] = EditorGUILayout.TextField($"文件夹 {i + 1}:", sourceFolders[i]);
+                    if (GUILayout.Button("×", GUILayout.Width(30)))
+                    {
+                        itemToRemove = i;
+                    }
                 }
-                EditorGUILayout.EndHorizontal();
             }
 
             // 第二遍：在GUI布局之外执行删除
             if (itemToRemove >= 0)
             {
                 sourceFolders.RemoveAt(itemToRemove);
-                // 可选：强制刷新GUI
                 Repaint();
             }
 
             // 添加文件夹的按钮
-            EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("+ 添加文件夹"))
+            using (new EditorGUILayout.HorizontalScope())
             {
-                sourceFolders.Add("Assets/");
-            }
-            if (GUILayout.Button("📁 选择文件夹"))
-            {
-                var path = EditorUtility.OpenFolderPanel("选择资源文件夹", "Assets", "");
-                if (!string.IsNullOrEmpty(path))
+                if (GUILayout.Button("+ 添加文件夹"))
                 {
-                    if (path.StartsWith(Application.dataPath))
+                    sourceFolders.Add("Assets/Art/"); // 🎯 默认改为子目录
+                }
+                if (GUILayout.Button("📁 选择文件夹"))
+                {
+                    var path = EditorUtility.OpenFolderPanel("选择资源文件夹", "Assets", "");
+                    if (!string.IsNullOrEmpty(path))
                     {
-                        sourceFolders.Add("Assets" + path.Substring(Application.dataPath.Length));
-                    }
-                    else
-                    {
-                        sourceFolders.Add(path);
+                        if (path.StartsWith(Application.dataPath))
+                        {
+                            string relativePath = "Assets" + path.Substring(Application.dataPath.Length);
+                            // 🎯 避免重复添加
+                            if (!sourceFolders.Contains(relativePath))
+                                sourceFolders.Add(relativePath);
+                        }
+                        else
+                        {
+                            if (!sourceFolders.Contains(path))
+                                sourceFolders.Add(path);
+                        }
                     }
                 }
             }
-            EditorGUILayout.EndHorizontal();
+
+            // 🎯 显示根目录警告
+            if (sourceFolders.Any(f => f == "Assets" || f == "Assets/"))
+            {
+                EditorGUILayout.HelpBox("⚠️ 扫描根目录 'Assets/' 可能导致问题，建议使用子目录", MessageType.Warning);
+            }
         }
 
         private void DrawOutputConfig()
         {
-            EditorGUILayout.BeginHorizontal();
-            outputPath = EditorGUILayout.TextField("输出路径:", outputPath);
-            if (GUILayout.Button("浏览", GUILayout.Width(60)))
+            using (new EditorGUILayout.HorizontalScope())
             {
-                var path = EditorUtility.SaveFolderPanel("选择输出目录", outputPath, "");
-                if (!string.IsNullOrEmpty(path))
+                outputPath = EditorGUILayout.TextField("输出路径:", outputPath);
+                if (GUILayout.Button("浏览", GUILayout.Width(60)))
                 {
-                    outputPath = path;
+                    var path = EditorUtility.SaveFolderPanel("选择输出目录", outputPath, "");
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        outputPath = path;
+                    }
                 }
             }
-            EditorGUILayout.EndHorizontal();
 
             buildTarget = (BuildTarget)EditorGUILayout.EnumPopup("目标平台:", buildTarget);
         }
 
         private void CreateNewConfig()
         {
-            var newConfig = CreateInstance<AssetBundleConfig>();
+            try
+            {
+                var path = EditorUtility.SaveFilePanelInProject("保存配置", "AssetBundleConfig", "asset", "保存配置文件");
+                if (string.IsNullOrEmpty(path)) return;
 
-            // 添加一些默认规则
-            newConfig.namingRules = new List<BundleNamingRule>
-        {
-            new BundleNamingRule
-            {
-                pathKeyword = "UI",
-                namingPattern = NamingPattern.TwoLevelFolders,
-                priority = 10
-            },
-            new BundleNamingRule
-            {
-                pathKeyword = "Character",
-                namingPattern = NamingPattern.TwoLevelFolders,
-                priority = 10
-            },
-            new BundleNamingRule
-            {
-                pathKeyword = "Effect",
-                namingPattern = NamingPattern.TwoLevelFolders,
-                priority = 10
-            }
-        };
+                var newConfig = CreateInstance<AssetBundleConfig>();
 
-            var path = EditorUtility.SaveFilePanelInProject("保存配置", "AssetBundleConfig", "asset", "保存配置文件");
-            if (!string.IsNullOrEmpty(path))
-            {
+                // 添加一些默认规则
+                newConfig.namingRules = new List<BundleNamingRule>
+                {
+                    new BundleNamingRule
+                    {
+                        pathKeyword = "UI",
+                        namingPattern = NamingPattern.TwoLevelFolders,
+                        priority = 10,
+                        customPattern = ""
+                    },
+                    new BundleNamingRule
+                    {
+                        pathKeyword = "Character",
+                        namingPattern = NamingPattern.TwoLevelFolders,
+                        priority = 10,
+                        customPattern = ""
+                    },
+                    new BundleNamingRule
+                    {
+                        pathKeyword = "Effect",
+                        namingPattern = NamingPattern.TwoLevelFolders,
+                        priority = 10,
+                        customPattern = ""
+                    }
+                };
+
                 AssetDatabase.CreateAsset(newConfig, path);
                 AssetDatabase.SaveAssets();
-                AssetDatabase.Refresh();
-                config = newConfig;
+
+                // 🎯 延迟加载避免引用问题
+                EditorApplication.delayCall += () =>
+                {
+                    AssetDatabase.Refresh();
+                    config = AssetDatabase.LoadAssetAtPath<AssetBundleConfig>(path);
+                    Repaint();
+                };
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"创建配置失败: {e.Message}");
             }
         }
 
         public string GenerateBundleName(string assetPath)
         {
+            // 🎯 输入验证
+            if (string.IsNullOrEmpty(assetPath))
+                return "invalid_path";
+
             if (config == null)
             {
-                // 无配置时的默认行为
-                return Path.GetFileName(Path.GetDirectoryName(assetPath))?.ToLower();
+                var dirName = Path.GetFileName(Path.GetDirectoryName(assetPath));
+                return string.IsNullOrEmpty(dirName) ? "default" : dirName.ToLower();
             }
 
-            // 按优先级排序规则
-            var sortedRules = new List<BundleNamingRule>(config.namingRules);
-            sortedRules.Sort((a, b) => b.priority.CompareTo(a.priority));
-
-            // 应用匹配的规则
-            foreach (var rule in sortedRules)
+            try
             {
-                if (!string.IsNullOrEmpty(rule.pathKeyword) &&
-                    assetPath.Contains(rule.pathKeyword, StringComparison.OrdinalIgnoreCase))
-                {
-                    return ApplyNamingPattern(assetPath, rule);
-                }
-            }
+                // 按优先级排序规则
+                var sortedRules = new List<BundleNamingRule>(config.namingRules ?? new List<BundleNamingRule>());
+                sortedRules.Sort((a, b) => b.priority.CompareTo(a.priority));
 
-            // 应用默认规则
-            return ApplyDefaultNamingPattern(assetPath);
+                // 应用匹配的规则
+                foreach (var rule in sortedRules)
+                {
+                    if (!string.IsNullOrEmpty(rule.pathKeyword) &&
+                        assetPath.Contains(rule.pathKeyword, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return ApplyNamingPattern(assetPath, rule);
+                    }
+                }
+
+                // 应用默认规则
+                return ApplyDefaultNamingPattern(assetPath);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"生成Bundle名称时出错: {ex.Message}");
+                return "error";
+            }
         }
 
         private string ApplyNamingPattern(string assetPath, BundleNamingRule rule)
         {
-            var directories = assetPath.Split('/');
+            // 根目录检测和保护
+            if (assetPath == "Assets" || assetPath == "Assets/")
+                return "invalid_root_path";
+
+            var directories = assetPath.Split('/').Where(d => !string.IsNullOrEmpty(d)).ToArray();
+            if (directories.Length == 0) return "invalid_path";
+
+            // 根目录文件特殊处理
+            if (directories.Length == 2 && directories[0] == "Assets")
+            {
+                string fileName = Path.GetFileNameWithoutExtension(directories[1])?.ToLower() ?? "unknown";
+                return $"root/{fileName}";
+            }
 
             switch (rule.namingPattern)
             {
                 case NamingPattern.ParentFolder:
-                    return Path.GetFileName(Path.GetDirectoryName(assetPath))?.ToLower();
+                    var dirName = Path.GetFileName(Path.GetDirectoryName(assetPath));
+                    return string.IsNullOrEmpty(dirName) ? "unknown" : dirName.ToLower();
 
                 case NamingPattern.TwoLevelFolders:
-                    if (directories.Length >= 3)
-                    {
-                        string parent = directories[^2].ToLower();
-                        string current = directories[^1].ToLower();
-                        return config.useFlatStructure ?
-                            $"{parent}_{current}" :
-                            $"{parent}{config.separator}{current}";
-                    }
-                    break;
+                    return HandleTwoLevelFolders(directories);
 
                 case NamingPattern.FullPath:
-                    // 移除 Assets/ 前缀，转换路径
                     var cleanPath = assetPath.StartsWith("Assets/") ? assetPath.Substring(7) : assetPath;
-                    cleanPath = Path.ChangeExtension(cleanPath, null); // 移除扩展名
-                    return cleanPath.ToLower().Replace('/', config.separator[0]);
+                    cleanPath = Path.ChangeExtension(cleanPath, null);
+                    // 🎯 安全的separator访问
+                    char separator = (config?.separator?.Length > 0) ? config.separator[0] : '/';
+                    return cleanPath.ToLower().Replace('/', separator);
 
                 case NamingPattern.Custom:
                     if (!string.IsNullOrEmpty(rule.customPattern))
@@ -239,37 +293,78 @@ namespace TechCosmos.AssetBundleBuilder.Editor
             return ApplyDefaultNamingPattern(assetPath);
         }
 
+        private string HandleTwoLevelFolders(string[] directories)
+        {
+            if (directories.Length >= 3)
+            {
+                string parent = directories[^2]?.ToLower() ?? "unknown";
+                string current = Path.GetFileNameWithoutExtension(directories[^1])?.ToLower() ?? "unknown";
+                return $"{parent}/{current}";
+            }
+            else if (directories.Length == 2)
+            {
+                string fileName = Path.GetFileNameWithoutExtension(directories[1])?.ToLower() ?? "unknown";
+                return $"root/{fileName}";
+            }
+            else
+            {
+                return "invalid_path";
+            }
+        }
+
         private string ApplyCustomPattern(string assetPath, string pattern)
         {
-            var directories = assetPath.Split('/');
-
-            // 支持 {0} {1} {2} 等占位符
-            string result = pattern;
-
-            for (int i = 0; i < Math.Min(directories.Length, config.maxFolderDepth); i++)
+            try
             {
-                string placeholder = "{" + i + "}";
-                if (result.Contains(placeholder))
+                var directories = assetPath.Split('/').Where(d => !string.IsNullOrEmpty(d)).ToArray();
+                string result = pattern;
+
+                // 🎯 安全的maxFolderDepth访问
+                int maxDepth = (config?.maxFolderDepth ?? 3);
+                maxDepth = Math.Max(1, Math.Min(maxDepth, directories.Length));
+
+                for (int i = 0; i < maxDepth; i++)
                 {
-                    result = result.Replace(placeholder, directories[directories.Length - 1 - i].ToLower());
+                    string placeholder = "{" + i + "}";
+                    if (result.Contains(placeholder))
+                    {
+                        int index = directories.Length - 1 - i;
+                        if (index >= 0 && index < directories.Length)
+                        {
+                            string folderName = directories[index]?.ToLower() ?? "unknown";
+                            result = result.Replace(placeholder, folderName);
+                        }
+                    }
                 }
+
+                // 🎯 安全的占位符替换
+                string fileName = Path.GetFileNameWithoutExtension(assetPath)?.ToLower() ?? "unknown";
+                string parentDir = Path.GetFileName(Path.GetDirectoryName(assetPath))?.ToLower() ?? "unknown";
+
+                result = result.Replace("{filename}", fileName);
+                result = result.Replace("{parent}", parentDir);
+
+                return result;
             }
-
-            // 支持特殊占位符
-            result = result.Replace("{filename}", Path.GetFileNameWithoutExtension(assetPath).ToLower());
-            result = result.Replace("{parent}", Path.GetFileName(Path.GetDirectoryName(assetPath))?.ToLower());
-
-            return result;
+            catch (Exception ex)
+            {
+                Debug.LogError($"应用自定义模式失败: {ex.Message}");
+                return "custom_error";
+            }
         }
 
         private string ApplyDefaultNamingPattern(string assetPath)
         {
-            if (config == null) return Path.GetFileName(Path.GetDirectoryName(assetPath))?.ToLower();
+            if (config == null || config.defaultRule == null)
+            {
+                var dirName = Path.GetFileName(Path.GetDirectoryName(assetPath));
+                return string.IsNullOrEmpty(dirName) ? "default" : dirName.ToLower();
+            }
 
             return ApplyNamingPattern(assetPath, new BundleNamingRule
             {
                 namingPattern = config.defaultRule.pattern,
-                customPattern = config.defaultRule.customPattern
+                customPattern = config.defaultRule.customPattern ?? ""
             });
         }
 
@@ -277,13 +372,44 @@ namespace TechCosmos.AssetBundleBuilder.Editor
         {
             if (sourceFolders.Count == 0) return;
 
-            var previewWindow = CreateInstance<PreviewWindow>();
-            previewWindow.ShowPreview(this, sourceFolders[0]);
+            // 🎯 配置保护
+            if (config != null && !AssetDatabase.Contains(config))
+            {
+                Debug.LogError("配置资产引用已失效！");
+                config = null;
+                return;
+            }
+
+            try
+            {
+                var previewWindow = CreateInstance<PreviewWindow>();
+                // 🎯 传递所有文件夹，而不仅仅是第一个
+                previewWindow.ShowPreview(this, sourceFolders);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"打开预览窗口失败: {e.Message}");
+                EditorUtility.DisplayDialog("错误", $"预览功能失败: {e.Message}", "确定");
+            }
+        }
+        private bool ShouldSkipAsset(string assetPath)
+        {
+            return AssetBundleFilter.ShouldSkipAsset(assetPath);
         }
         public void BuildAllAssetBundles()
         {
             try
             {
+                // 🎯 根目录警告
+                var rootPaths = sourceFolders.Where(f => f == "Assets" || f == "Assets/").ToList();
+                if (rootPaths.Count > 0)
+                {
+                    bool proceed = EditorUtility.DisplayDialog("警告",
+                        "检测到可能问题的扫描路径（Assets/）。这可能导致闪退。是否继续？",
+                        "继续", "取消");
+                    if (!proceed) return;
+                }
+
                 // 验证配置
                 if (sourceFolders.Count == 0)
                 {
@@ -343,36 +469,85 @@ namespace TechCosmos.AssetBundleBuilder.Editor
                 AssetDatabase.RemoveAssetBundleName(name, true);
             }
 
+            // 使用HashSet避免重复处理
+            var processedAssets = new HashSet<string>();
+
             // 遍历所有配置的源文件夹
             foreach (var folder in sourceFolders)
             {
-                if (!Directory.Exists(folder)) continue;
+                if (!Directory.Exists(folder))
+                {
+                    Debug.LogWarning($"文件夹不存在，已跳过: {folder}");
+                    continue;
+                }
 
                 // 获取文件夹下所有资源文件的GUID
                 var guids = AssetDatabase.FindAssets("", new[] { folder });
+
+                Debug.Log($"📁 扫描文件夹: {folder}，找到 {guids.Length} 个资源");
+
+                int processedCount = 0;
+                int skippedCount = 0;
 
                 foreach (var guid in guids)
                 {
                     var assetPath = AssetDatabase.GUIDToAssetPath(guid);
 
-                    // 跳过meta文件和不支持的文件
-                    if (assetPath.EndsWith(".meta")) continue;
+                    // 跳过已处理的资源
+                    if (processedAssets.Contains(assetPath))
+                    {
+                        skippedCount++;
+                        continue;
+                    }
+
+                    processedAssets.Add(assetPath);
+
+                    // 🎯 使用智能过滤跳过不需要打包的文件
+                    if (ShouldSkipAsset(assetPath))
+                    {
+                        skippedCount++;
+                        continue;
+                    }
 
                     // 根据路径自动生成AssetBundle名称
                     var bundleName = GenerateBundleName(assetPath);
-                    if (string.IsNullOrEmpty(bundleName)) continue;
+                    if (string.IsNullOrEmpty(bundleName))
+                    {
+                        Debug.LogWarning($"无法生成Bundle名称，已跳过: {assetPath}");
+                        skippedCount++;
+                        continue;
+                    }
 
                     // 设置AssetBundle名称
                     var importer = AssetImporter.GetAtPath(assetPath);
                     if (importer != null)
                     {
                         importer.assetBundleName = bundleName.ToLower();
+                        processedCount++;
+
+                        // 在详细日志模式下显示每个资源的处理结果
+                        if (Debug.isDebugBuild)
+                        {
+                            Debug.Log($"✅ 设置Bundle: {Path.GetFileName(assetPath)} → {bundleName}");
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"无法获取AssetImporter: {assetPath}");
+                        skippedCount++;
                     }
                 }
+
+                Debug.Log($"📊 文件夹 {folder} 处理完成: {processedCount} 个资源已设置Bundle, {skippedCount} 个资源已跳过");
             }
 
             AssetDatabase.SaveAssets();
+
+            // 显示最终统计
+            var finalBundles = AssetDatabase.GetAllAssetBundleNames();
+            Debug.Log($"🎉 AssetBundle名称设置完成! 总共生成 {finalBundles.Length} 个Bundle");
         }
+
         private void GenerateBuildReport()
         {
             var report = new System.Text.StringBuilder();
